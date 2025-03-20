@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,92 +25,95 @@ import {
   DownloadCloud,
   Filter
 } from 'lucide-react';
-
-// Mock data for demonstration
-const mockPendingStudents = [
-  { 
-    id: 1, 
-    name: 'Emily Johnson', 
-    email: 'emily.johnson@example.com', 
-    status: 'pending', 
-    date: '2023-06-15',
-    studentId: 'ST10025',
-    documents: [
-      { name: 'ID Card.pdf', type: 'identity' },
-      { name: 'Transcript.pdf', type: 'transcript' },
-      { name: 'Certificate.pdf', type: 'additional' },
-    ]
-  },
-  { 
-    id: 2, 
-    name: 'Michael Smith', 
-    email: 'michael.smith@example.com', 
-    status: 'pending', 
-    date: '2023-06-14',
-    studentId: 'ST10026',
-    documents: [
-      { name: 'Passport.jpg', type: 'identity' },
-      { name: 'Academic_Record.pdf', type: 'transcript' },
-    ]
-  },
-  { 
-    id: 3, 
-    name: 'Jessica Williams', 
-    email: 'jessica.williams@example.com', 
-    status: 'pending', 
-    date: '2023-06-13',
-    studentId: 'ST10027',
-    documents: [
-      { name: 'National_ID.pdf', type: 'identity' },
-      { name: 'School_Transcript.pdf', type: 'transcript' },
-      { name: 'Recommendation.pdf', type: 'additional' },
-      { name: 'Achievements.pdf', type: 'additional' },
-    ]
-  },
-];
-
-const mockApprovedStudents = [
-  { 
-    id: 4, 
-    name: 'David Brown', 
-    email: 'david.brown@example.com', 
-    status: 'approved', 
-    date: '2023-06-10',
-    studentId: 'ST10020',
-    approvedBy: 'Admin',
-    approvedDate: '2023-06-12'
-  },
-  { 
-    id: 5, 
-    name: 'Sarah Garcia', 
-    email: 'sarah.garcia@example.com', 
-    status: 'approved', 
-    date: '2023-06-09',
-    studentId: 'ST10021',
-    approvedBy: 'Admin',
-    approvedDate: '2023-06-11'
-  },
-];
-
-const mockRejectedStudents = [
-  { 
-    id: 6, 
-    name: 'Thomas Wilson', 
-    email: 'thomas.wilson@example.com', 
-    status: 'rejected', 
-    date: '2023-06-08',
-    studentId: 'ST10022',
-    rejectedReason: 'Incomplete documentation',
-    rejectedBy: 'Admin',
-    rejectedDate: '2023-06-10'
-  },
-];
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Dashboard = () => {
   const { toast } = useToast();
+  const { user, signOut } = useAuth();
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTab, setCurrentTab] = useState('pending');
+  const [pendingStudents, setPendingStudents] = useState<any[]>([]);
+  const [approvedStudents, setApprovedStudents] = useState<any[]>([]);
+  const [rejectedStudents, setRejectedStudents] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [studentDocuments, setStudentDocuments] = useState<any[]>([]);
+  
+  useEffect(() => {
+    fetchStudents();
+  }, [currentTab]);
+  
+  useEffect(() => {
+    if (selectedStudent) {
+      fetchStudentDocuments(selectedStudent.id);
+    } else {
+      setStudentDocuments([]);
+    }
+  }, [selectedStudent]);
+  
+  const fetchStudents = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch all student profiles
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'student');
+        
+      if (error) throw error;
+      
+      // Get user emails
+      const userIds = profiles.map(profile => profile.id);
+      const { data: users, error: usersError } = await supabase
+        .from('auth')
+        .select('id, email')
+        .in('id', userIds);
+        
+      if (usersError) {
+        console.error("Error fetching user emails:", usersError);
+      }
+      
+      // Combine profile data with email
+      const studentsWithEmails = profiles.map(profile => {
+        const userEmail = users?.find(u => u.id === profile.id)?.email || 'Email not found';
+        return {
+          ...profile,
+          email: userEmail,
+          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unnamed User'
+        };
+      });
+      
+      // Filter students by status
+      const pending = studentsWithEmails.filter(s => s.approved === false || s.approved === null);
+      const approved = studentsWithEmails.filter(s => s.approved === true);
+      
+      setPendingStudents(pending);
+      setApprovedStudents(approved);
+      setRejectedStudents([]); // We don't have rejected status yet
+      
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const fetchStudentDocuments = async (studentId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('user_id', studentId);
+        
+      if (error) throw error;
+      
+      setStudentDocuments(data || []);
+    } catch (error) {
+      console.error('Error fetching student documents:', error);
+      setStudentDocuments([]);
+    }
+  };
   
   // Function to handle student selection for detail view
   const handleStudentSelect = (student: any) => {
@@ -118,19 +121,41 @@ const Dashboard = () => {
   };
   
   // Function to approve a student
-  const handleApproveStudent = (studentId: number) => {
-    // In a real application, this would call a Supabase function to update the student status
-    toast({
-      title: "Student approved",
-      description: "The student has been successfully approved",
-    });
-    
-    // Reset selection after approval
-    setSelectedStudent(null);
+  const handleApproveStudent = async (studentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ approved: true })
+        .eq('id', studentId);
+        
+      if (error) throw error;
+      
+      // Update local state
+      setPendingStudents(prev => prev.filter(s => s.id !== studentId));
+      const approvedStudent = pendingStudents.find(s => s.id === studentId);
+      if (approvedStudent) {
+        approvedStudent.approved = true;
+        setApprovedStudents(prev => [...prev, approvedStudent]);
+      }
+      
+      toast({
+        title: "Student approved",
+        description: "The student has been successfully approved",
+      });
+      
+      // Reset selection after approval
+      setSelectedStudent(null);
+    } catch (error: any) {
+      toast({
+        title: "Error approving student",
+        description: error.message || "There was an error approving the student",
+        variant: "destructive",
+      });
+    }
   };
   
   // Function to reject a student
-  const handleRejectStudent = (studentId: number) => {
+  const handleRejectStudent = (studentId: string) => {
     // In a real application, this would call a Supabase function to update the student status
     toast({
       title: "Student rejected",
@@ -140,6 +165,71 @@ const Dashboard = () => {
     // Reset selection after rejection
     setSelectedStudent(null);
   };
+
+  const viewDocumentUrl = async (filePath: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('student_documents')
+        .createSignedUrl(filePath, 60); // URL valid for 60 seconds
+        
+      if (error) throw error;
+      
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error creating signed URL:', error);
+      toast({
+        title: "Error viewing document",
+        description: "There was an error opening the document",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const downloadDocument = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('student_documents')
+        .download(filePath);
+        
+      if (error) throw error;
+      
+      if (data) {
+        const url = URL.createObjectURL(data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      toast({
+        title: "Error downloading document",
+        description: "There was an error downloading the document",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const handleLogout = async () => {
+    await signOut();
+  };
+  
+  const filteredPendingStudents = pendingStudents.filter(student => 
+    student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (student.student_id && student.student_id.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+  
+  const filteredApprovedStudents = approvedStudents.filter(student => 
+    student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (student.student_id && student.student_id.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
   
   return (
     <div className="min-h-screen bg-secondary/30">
@@ -158,7 +248,9 @@ const Dashboard = () => {
           <div className="flex items-center gap-4">
             <div className="relative">
               <Bell className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-xs flex items-center justify-center rounded-full">3</span>
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-xs flex items-center justify-center rounded-full">
+                {pendingStudents.length}
+              </span>
             </div>
             
             <Separator orientation="vertical" className="h-6" />
@@ -170,9 +262,11 @@ const Dashboard = () => {
               </Avatar>
               <div className="flex flex-col">
                 <span className="text-sm font-medium">Admin</span>
-                <span className="text-xs text-muted-foreground">admin@school.edu</span>
+                <span className="text-xs text-muted-foreground">{user?.email}</span>
               </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              <Button variant="ghost" size="icon" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 text-muted-foreground" />
+              </Button>
             </div>
           </div>
         </div>
@@ -194,7 +288,7 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Pending</p>
-                      <p className="text-2xl font-bold">{mockPendingStudents.length}</p>
+                      <p className="text-2xl font-bold">{pendingStudents.length}</p>
                     </div>
                     <div className="p-2 bg-orange-100 text-orange-600 rounded-full">
                       <Users className="h-5 w-5" />
@@ -208,7 +302,7 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Approved</p>
-                      <p className="text-2xl font-bold">{mockApprovedStudents.length}</p>
+                      <p className="text-2xl font-bold">{approvedStudents.length}</p>
                     </div>
                     <div className="p-2 bg-green-100 text-green-600 rounded-full">
                       <CheckCircle2 className="h-5 w-5" />
@@ -222,7 +316,7 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Rejected</p>
-                      <p className="text-2xl font-bold">{mockRejectedStudents.length}</p>
+                      <p className="text-2xl font-bold">{rejectedStudents.length}</p>
                     </div>
                     <div className="p-2 bg-red-100 text-red-600 rounded-full">
                       <XCircle className="h-5 w-5" />
@@ -270,96 +364,73 @@ const Dashboard = () => {
                     <TabsList className="grid grid-cols-3">
                       <TabsTrigger value="pending" className="flex items-center gap-2">
                         <span>Pending</span>
-                        <Badge variant="outline" className="ml-1">{mockPendingStudents.length}</Badge>
+                        <Badge variant="outline" className="ml-1">{pendingStudents.length}</Badge>
                       </TabsTrigger>
                       <TabsTrigger value="approved" className="flex items-center gap-2">
                         <span>Approved</span>
-                        <Badge variant="outline" className="ml-1">{mockApprovedStudents.length}</Badge>
+                        <Badge variant="outline" className="ml-1">{approvedStudents.length}</Badge>
                       </TabsTrigger>
                       <TabsTrigger value="rejected" className="flex items-center gap-2">
                         <span>Rejected</span>
-                        <Badge variant="outline" className="ml-1">{mockRejectedStudents.length}</Badge>
+                        <Badge variant="outline" className="ml-1">{rejectedStudents.length}</Badge>
                       </TabsTrigger>
                     </TabsList>
                   </div>
                   
                   <TabsContent value="pending" className="m-0">
                     <CardContent>
-                      <div className="space-y-4">
-                        {mockPendingStudents.length === 0 ? (
-                          <div className="text-center py-8">
-                            <p className="text-muted-foreground">No pending registrations</p>
-                          </div>
-                        ) : (
-                          mockPendingStudents
-                            .filter(student => 
-                              student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              student.studentId.toLowerCase().includes(searchQuery.toLowerCase())
-                            )
-                            .map(student => (
-                              <StudentCard 
-                                key={student.id} 
-                                student={student} 
-                                onClick={() => handleStudentSelect(student)}
-                                isSelected={selectedStudent?.id === student.id}
-                              />
-                            ))
-                        )}
-                      </div>
+                      {isLoading ? (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground">Loading students...</p>
+                        </div>
+                      ) : filteredPendingStudents.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground">No pending registrations</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {filteredPendingStudents.map(student => (
+                            <StudentCard 
+                              key={student.id} 
+                              student={student} 
+                              onClick={() => handleStudentSelect(student)}
+                              isSelected={selectedStudent?.id === student.id}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </TabsContent>
                   
                   <TabsContent value="approved" className="m-0">
                     <CardContent>
-                      <div className="space-y-4">
-                        {mockApprovedStudents.length === 0 ? (
-                          <div className="text-center py-8">
-                            <p className="text-muted-foreground">No approved registrations</p>
-                          </div>
-                        ) : (
-                          mockApprovedStudents
-                            .filter(student => 
-                              student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              student.studentId.toLowerCase().includes(searchQuery.toLowerCase())
-                            )
-                            .map(student => (
-                              <StudentCard 
-                                key={student.id} 
-                                student={student} 
-                                onClick={() => handleStudentSelect(student)}
-                                isSelected={selectedStudent?.id === student.id}
-                              />
-                            ))
-                        )}
-                      </div>
+                      {isLoading ? (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground">Loading students...</p>
+                        </div>
+                      ) : filteredApprovedStudents.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground">No approved registrations</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {filteredApprovedStudents.map(student => (
+                            <StudentCard 
+                              key={student.id} 
+                              student={student} 
+                              onClick={() => handleStudentSelect(student)}
+                              isSelected={selectedStudent?.id === student.id}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </TabsContent>
                   
                   <TabsContent value="rejected" className="m-0">
                     <CardContent>
-                      <div className="space-y-4">
-                        {mockRejectedStudents.length === 0 ? (
-                          <div className="text-center py-8">
-                            <p className="text-muted-foreground">No rejected registrations</p>
-                          </div>
-                        ) : (
-                          mockRejectedStudents
-                            .filter(student => 
-                              student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              student.studentId.toLowerCase().includes(searchQuery.toLowerCase())
-                            )
-                            .map(student => (
-                              <StudentCard 
-                                key={student.id} 
-                                student={student} 
-                                onClick={() => handleStudentSelect(student)}
-                                isSelected={selectedStudent?.id === student.id}
-                              />
-                            ))
-                        )}
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground">No rejected registrations</p>
                       </div>
                     </CardContent>
                   </TabsContent>
@@ -388,12 +459,12 @@ const Dashboard = () => {
                         <div className="flex items-center mt-2">
                           <Badge 
                             className={cn(
-                              selectedStudent.status === 'pending' && "bg-orange-100 text-orange-600 hover:bg-orange-100",
-                              selectedStudent.status === 'approved' && "bg-green-100 text-green-600 hover:bg-green-100",
-                              selectedStudent.status === 'rejected' && "bg-red-100 text-red-600 hover:bg-red-100"
+                              selectedStudent.approved === false || selectedStudent.approved === null
+                                ? "bg-orange-100 text-orange-600 hover:bg-orange-100"
+                                : "bg-green-100 text-green-600 hover:bg-green-100"
                             )}
                           >
-                            {selectedStudent.status.charAt(0).toUpperCase() + selectedStudent.status.slice(1)}
+                            {selectedStudent.approved ? 'Approved' : 'Pending'}
                           </Badge>
                         </div>
                       </div>
@@ -403,64 +474,74 @@ const Dashboard = () => {
                       <div className="space-y-4">
                         <div>
                           <h4 className="text-sm font-medium mb-1">Student ID</h4>
-                          <p>{selectedStudent.studentId}</p>
+                          <p>{selectedStudent.student_id || 'Not provided'}</p>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-sm font-medium mb-1">Phone Number</h4>
+                          <p>{selectedStudent.phone_number || 'Not provided'}</p>
                         </div>
                         
                         <div>
                           <h4 className="text-sm font-medium mb-1">Registration Date</h4>
-                          <p>{new Date(selectedStudent.date).toLocaleDateString()}</p>
+                          <p>{new Date(selectedStudent.created_at).toLocaleDateString()}</p>
                         </div>
                         
-                        {selectedStudent.status === 'approved' && (
-                          <>
-                            <div>
-                              <h4 className="text-sm font-medium mb-1">Approved By</h4>
-                              <p>{selectedStudent.approvedBy}</p>
-                            </div>
-                            <div>
-                              <h4 className="text-sm font-medium mb-1">Approval Date</h4>
-                              <p>{new Date(selectedStudent.approvedDate).toLocaleDateString()}</p>
-                            </div>
-                          </>
+                        {selectedStudent.bio && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-1">Bio</h4>
+                            <p className="text-sm">{selectedStudent.bio}</p>
+                          </div>
                         )}
                         
-                        {selectedStudent.status === 'rejected' && (
-                          <>
-                            <div>
-                              <h4 className="text-sm font-medium mb-1">Rejected By</h4>
-                              <p>{selectedStudent.rejectedBy}</p>
-                            </div>
-                            <div>
-                              <h4 className="text-sm font-medium mb-1">Rejection Date</h4>
-                              <p>{new Date(selectedStudent.rejectedDate).toLocaleDateString()}</p>
-                            </div>
-                            <div>
-                              <h4 className="text-sm font-medium mb-1">Rejection Reason</h4>
-                              <p>{selectedStudent.rejectedReason}</p>
-                            </div>
-                          </>
-                        )}
-                        
-                        {selectedStudent.documents && (
+                        {studentDocuments.length > 0 && (
                           <div>
                             <h4 className="text-sm font-medium mb-2">Documents</h4>
                             <div className="space-y-2">
-                              {selectedStudent.documents.map((doc: any, index: number) => (
-                                <div key={index} className="flex items-center justify-between bg-secondary/50 p-2 rounded-md">
+                              {studentDocuments.map((doc) => (
+                                <div key={doc.id} className="flex items-center justify-between bg-secondary/50 p-2 rounded-md">
                                   <div className="flex items-center">
                                     <FileText className="h-4 w-4 text-primary mr-2" />
-                                    <span className="text-sm">{doc.name}</span>
+                                    <div>
+                                      <span className="text-sm">{doc.name}</span>
+                                      <p className="text-xs text-muted-foreground">
+                                        {doc.document_type === 'student_id' && 'Student ID'}
+                                        {doc.document_type === 'study_permit' && 'Study Permit'}
+                                        {doc.document_type === 'photo' && 'Personal Photo'}
+                                      </p>
+                                    </div>
                                   </div>
                                   <div className="flex items-center">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8"
+                                      onClick={() => viewDocumentUrl(doc.file_path)}
+                                    >
                                       <Eye className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8"
+                                      onClick={() => downloadDocument(doc.file_path, doc.name)}
+                                    >
                                       <DownloadCloud className="h-4 w-4" />
                                     </Button>
                                   </div>
                                 </div>
                               ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {studentDocuments.length === 0 && (
+                          <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
+                            <div className="flex">
+                              <AlertTriangle className="h-5 w-5 text-amber-600 mr-2" />
+                              <p className="text-sm text-amber-800">
+                                No documents uploaded yet
+                              </p>
                             </div>
                           </div>
                         )}
@@ -477,7 +558,7 @@ const Dashboard = () => {
                   )}
                 </CardContent>
                 
-                {selectedStudent && selectedStudent.status === 'pending' && (
+                {selectedStudent && (selectedStudent.approved === false || selectedStudent.approved === null) && (
                   <CardFooter className="flex justify-between gap-4">
                     <Button 
                       variant="outline" 
@@ -490,6 +571,7 @@ const Dashboard = () => {
                     <Button 
                       className="w-full"
                       onClick={() => handleApproveStudent(selectedStudent.id)}
+                      disabled={studentDocuments.length < 3}
                     >
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       Approve
@@ -539,27 +621,22 @@ const StudentCard = ({
         <Badge 
           className={cn(
             "ml-auto",
-            student.status === 'pending' && "bg-orange-100 text-orange-600 hover:bg-orange-100",
-            student.status === 'approved' && "bg-green-100 text-green-600 hover:bg-green-100",
-            student.status === 'rejected' && "bg-red-100 text-red-600 hover:bg-red-100"
+            student.approved 
+              ? "bg-green-100 text-green-600 hover:bg-green-100" 
+              : "bg-orange-100 text-orange-600 hover:bg-orange-100"
           )}
         >
-          {student.status.charAt(0).toUpperCase() + student.status.slice(1)}
+          {student.approved ? 'Approved' : 'Pending'}
         </Badge>
       </div>
       
       <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
         <div>
-          <span className="text-muted-foreground">ID:</span> {student.studentId}
+          <span className="text-muted-foreground">ID:</span> {student.student_id || 'N/A'}
         </div>
         <div>
-          <span className="text-muted-foreground">Date:</span> {new Date(student.date).toLocaleDateString()}
+          <span className="text-muted-foreground">Created:</span> {new Date(student.created_at).toLocaleDateString()}
         </div>
-        {student.documents && (
-          <div>
-            <span className="text-muted-foreground">Documents:</span> {student.documents.length}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -12,6 +12,10 @@ interface UserProfile {
   last_name: string | null;
   approved: boolean | null;
   student_id: string | null;
+  phone_number: string | null;
+  bio: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 interface AuthContextProps {
@@ -22,9 +26,11 @@ interface AuthContextProps {
   isAdmin: boolean;
   isStudent: boolean;
   isApproved: boolean;
+  hasUploadedDocuments: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -34,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasUploadedDocuments, setHasUploadedDocuments] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -67,6 +74,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (user && isStudent) {
+      checkDocuments();
+    }
+  }, [user, profile]);
+
   const fetchUserProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -83,6 +96,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error fetching user profile:', error);
       setProfile(null);
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchUserProfile(user.id);
+      if (isStudent) {
+        await checkDocuments();
+      }
+    }
+  };
+
+  const checkDocuments = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('document_type')
+        .eq('user_id', user.id);
+        
+      if (error) throw error;
+      
+      const hasStudentId = data.some(doc => doc.document_type === 'student_id');
+      const hasStudyPermit = data.some(doc => doc.document_type === 'study_permit');
+      const hasPhoto = data.some(doc => doc.document_type === 'photo');
+      
+      setHasUploadedDocuments(hasStudentId && hasStudyPermit && hasPhoto);
+    } catch (error) {
+      console.error('Error checking documents:', error);
+      setHasUploadedDocuments(false);
     }
   };
 
@@ -178,9 +222,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin,
     isStudent,
     isApproved,
+    hasUploadedDocuments,
     signIn,
     signUp,
     signOut,
+    refreshProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
