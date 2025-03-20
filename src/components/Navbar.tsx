@@ -8,13 +8,17 @@ import {
   User, 
   Menu, 
   X, 
-  GraduationCap 
+  GraduationCap,
+  LogOut,
+  UserCog
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { user, isAdmin, signOut } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -57,18 +61,38 @@ const Navbar = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/login" className="flex items-center gap-1">
-                <LogIn className="w-4 h-4" />
-                <span>Log in</span>
-              </Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/register" className="flex items-center gap-1">
-                <User className="w-4 h-4" />
-                <span>Register</span>
-              </Link>
-            </Button>
+            {user ? (
+              <>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to={isAdmin ? "/dashboard" : "/profile"} className="flex items-center gap-1">
+                    {isAdmin ? (
+                      <><UserCog className="w-4 h-4" /><span>Dashboard</span></>
+                    ) : (
+                      <><User className="w-4 h-4" /><span>Profile</span></>
+                    )}
+                  </Link>
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => signOut()}>
+                  <LogOut className="w-4 h-4 mr-1" />
+                  <span>Log out</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/login" className="flex items-center gap-1">
+                    <LogIn className="w-4 h-4" />
+                    <span>Log in</span>
+                  </Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link to="/register" className="flex items-center gap-1">
+                    <User className="w-4 h-4" />
+                    <span>Register</span>
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -102,18 +126,38 @@ const Navbar = () => {
           <MobileNavLink to="/contact" label="Contact" />
           
           <div className="border-t pt-6 flex flex-col gap-3">
-            <Button variant="outline" asChild className="w-full justify-start">
-              <Link to="/login" className="flex items-center gap-2">
-                <LogIn className="w-5 h-5" />
-                <span>Log in</span>
-              </Link>
-            </Button>
-            <Button asChild className="w-full justify-start">
-              <Link to="/register" className="flex items-center gap-2">
-                <User className="w-5 h-5" />
-                <span>Register</span>
-              </Link>
-            </Button>
+            {user ? (
+              <>
+                <Button variant="outline" asChild className="w-full justify-start">
+                  <Link to={isAdmin ? "/dashboard" : "/profile"} className="flex items-center gap-2">
+                    {isAdmin ? (
+                      <><UserCog className="w-5 h-5" /><span>Dashboard</span></>
+                    ) : (
+                      <><User className="w-5 h-5" /><span>Profile</span></>
+                    )}
+                  </Link>
+                </Button>
+                <Button onClick={() => signOut()} className="w-full justify-start">
+                  <LogOut className="w-5 h-5 mr-2" />
+                  <span>Log out</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" asChild className="w-full justify-start">
+                  <Link to="/login" className="flex items-center gap-2">
+                    <LogIn className="w-5 h-5" />
+                    <span>Log in</span>
+                  </Link>
+                </Button>
+                <Button asChild className="w-full justify-start">
+                  <Link to="/register" className="flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    <span>Register</span>
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

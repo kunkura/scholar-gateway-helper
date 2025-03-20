@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,46 +7,40 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GraduationCap, UserCog, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/contexts/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { signIn, user, profile, isAdmin, isStudent } = useAuth();
   const [role, setRole] = useState<'student' | 'admin'>('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    // If user is already logged in, redirect to appropriate page
+    if (user) {
+      if (isAdmin) {
+        navigate('/dashboard');
+      } else if (isStudent) {
+        navigate('/profile');
+      }
+    }
+  }, [user, isAdmin, isStudent, navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    // Simulating login process (will be replaced with Supabase auth)
     try {
-      setTimeout(() => {
-        // This is just a placeholder for now - will be replaced with Supabase auth
-        if (email && password) {
-          toast({
-            title: "Login successful",
-            description: `Logged in as ${role}`,
-          });
-          
-          // Redirect based on role
-          if (role === 'admin') {
-            navigate('/dashboard');
-          } else {
-            navigate('/profile');
-          }
-        } else {
-          setError('Please enter both email and password');
-        }
-        setIsLoading(false);
-      }, 1000);
-    } catch (error) {
-      setError('Login failed. Please check your credentials.');
+      await signIn(email, password);
+      
+      // Redirection will happen in the useEffect above
+    } catch (error: any) {
+      setError(error.message || 'Login failed. Please check your credentials.');
+    } finally {
       setIsLoading(false);
     }
   };

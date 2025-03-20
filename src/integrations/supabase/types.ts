@@ -9,16 +9,93 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      documents: {
+        Row: {
+          document_type: string
+          file_path: string
+          file_type: string
+          id: string
+          name: string
+          uploaded_at: string | null
+          user_id: string
+        }
+        Insert: {
+          document_type: string
+          file_path: string
+          file_type: string
+          id?: string
+          name: string
+          uploaded_at?: string | null
+          user_id: string
+        }
+        Update: {
+          document_type?: string
+          file_path?: string
+          file_type?: string
+          id?: string
+          name?: string
+          uploaded_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          approved: boolean | null
+          bio: string | null
+          created_at: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone_number: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          student_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved?: boolean | null
+          bio?: string | null
+          created_at?: string | null
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          phone_number?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          student_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved?: boolean | null
+          bio?: string | null
+          created_at?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone_number?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          student_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          requested_role: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
+      }
+      is_approved: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      user_role: "student" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
