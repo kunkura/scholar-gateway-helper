@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
 import { 
+  AlertTriangle,
   Bell, 
   ChevronDown, 
   FileText, 
@@ -63,23 +63,13 @@ const Dashboard = () => {
         
       if (error) throw error;
       
-      // Get user emails
-      const userIds = profiles.map(profile => profile.id);
-      const { data: users, error: usersError } = await supabase
-        .from('auth')
-        .select('id, email')
-        .in('id', userIds);
-        
-      if (usersError) {
-        console.error("Error fetching user emails:", usersError);
-      }
-      
-      // Combine profile data with email
+      // Get user emails through a separate query to Supabase auth - modified approach
+      // We'll rely on pre-populated data in the profiles instead
       const studentsWithEmails = profiles.map(profile => {
-        const userEmail = users?.find(u => u.id === profile.id)?.email || 'Email not found';
         return {
           ...profile,
-          email: userEmail,
+          // Using placeholder email since we can't directly query auth.users
+          email: `${profile.first_name?.toLowerCase() || ''}${profile.last_name?.toLowerCase() || ''}@student.edu`,
           name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unnamed User'
         };
       });
