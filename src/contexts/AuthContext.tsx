@@ -48,6 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event, !!session);
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -61,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('Initial session check:', !!session);
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -89,12 +91,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error) {
+        console.error('Error fetching user profile:', error);
         throw error;
       }
 
+      console.log('Fetched profile:', data);
       setProfile(data as UserProfile);
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('Error in fetchUserProfile:', error);
       setProfile(null);
     }
   };
@@ -117,7 +121,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select('document_type')
         .eq('user_id', user.id);
         
-      if (error) throw error;
+      if (error) {
+        console.error('Error checking documents:', error);
+        throw error;
+      }
       
       const hasStudentId = data.some(doc => doc.document_type === 'student_id');
       const hasStudyPermit = data.some(doc => doc.document_type === 'study_permit');
@@ -125,23 +132,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setHasUploadedDocuments(hasStudentId && hasStudyPermit && hasPhoto);
     } catch (error) {
-      console.error('Error checking documents:', error);
+      console.error('Error in checkDocuments:', error);
       setHasUploadedDocuments(false);
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
+      setIsLoading(true);
+      console.log('Signing in with:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('Sign in error:', error);
         throw error;
       }
 
-      // Redirect based on role
+      console.log('Sign in successful:', !!data.user);
+      
+      // Redirect based on role after profile fetch
       if (data.user) {
         await fetchUserProfile(data.user.id);
         
@@ -151,17 +164,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (error: any) {
+      console.error('Sign in catch error:', error);
       toast({
         title: "Login failed",
         description: error.message || "Please check your credentials",
         variant: "destructive",
       });
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     try {
+      console.log('Signing up with:', email, firstName, lastName);
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -174,16 +192,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
+        console.error('Sign up error:', error);
         throw error;
       }
 
-      toast({
-        title: "Registration successful",
-        description: "Your account has been created successfully",
-      });
+      console.log('Sign up response:', data);
       
-      navigate('/registration-success');
+      // Check if email confirmation is required
+      if (data.user && data.session) {
+        // User is automatically signed in (no email confirmation required)
+        toast({
+          title: "Registration successful",
+          description: "Your account has been created successfully. You are now logged in.",
+        });
+        
+        // Let the auth state listener handle the session update
+        // We don't need to manually set the user and session here
+      } else {
+        // Email confirmation is required
+        toast({
+          title: "Registration successful",
+          description: "Please check your email to confirm your account",
+        });
+        
+        navigate('/registration-success');
+      }
     } catch (error: any) {
+      console.error('Sign up catch error:', error);
       toast({
         title: "Registration failed",
         description: error.message,
@@ -202,6 +237,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "You have been logged out successfully",
       });
     } catch (error: any) {
+      console.error('Sign out error:', error);
       toast({
         title: "Error signing out",
         description: error.message,
