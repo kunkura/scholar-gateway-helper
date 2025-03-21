@@ -15,13 +15,17 @@ interface DocumentUploaderProps {
   onUploadComplete: () => void;
   title: string;
   description: string;
+  month?: string; // Optional month for payment proofs
+  year?: string; // Optional year for payment proofs
 }
 
 const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   documentType,
   onUploadComplete,
   title,
-  description
+  description,
+  month,
+  year
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -94,6 +98,8 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           file_type: file.type,
           file_path: filePath,
           document_type: documentType,
+          // Add metadata for payment proofs
+          metadata: documentType === 'payment_proof' ? { month, year } : null
         });
       
       if (dbError) throw dbError;

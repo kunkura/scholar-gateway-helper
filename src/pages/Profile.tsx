@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import DocumentUploader from '@/components/DocumentUploader';
+import PaymentUploader from '@/components/PaymentUploader';
 
 const Profile = () => {
   const { user, profile, signOut, isApproved } = useAuth();
@@ -322,6 +323,18 @@ const Profile = () => {
             </div>
           )}
         </div>
+        
+        {/* Monthly Payment Section - Only show for approved students */}
+        {isApproved && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold">Monthly Subscription</h2>
+            <p className="text-muted-foreground">
+              Upload your monthly subscription payment proof to maintain your active status.
+            </p>
+            
+            <PaymentUploader />
+          </div>
+        )}
       </div>
     </div>
   );

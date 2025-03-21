@@ -39,6 +39,9 @@ const Dashboard = () => {
   const [rejectedStudents, setRejectedStudents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [studentDocuments, setStudentDocuments] = useState<any[]>([]);
+  const [paymentsView, setPaymentsView] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
+  const [paymentsList, setPaymentsList] = useState<any[]>([]);
   
   useEffect(() => {
     fetchStudents();
@@ -221,6 +224,127 @@ const Dashboard = () => {
     (student.student_id && student.student_id.toLowerCase().includes(searchQuery.toLowerCase()))
   );
   
+  useEffect(() => {
+    if (paymentsView) {
+      fetchPayments();
+    }
+  }, [paymentsView]);
+  
+  const fetchPayments = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch all payment documents
+      const { data, error } = await supabase
+        .from('documents')
+        .select(`
+          *,
+          profiles:user_id (
+            id,
+            first_name,
+            last_name,
+            student_id
+          )
+        `)
+        .eq('document_type', 'payment_proof');
+        
+      if (error) throw error;
+      
+      // Process the data to include user information
+      const processedData = data.map(payment => {
+        const profile = payment.profiles as any;
+        return {
+          ...payment,
+          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unnamed User',
+          student_id: profile.student_id || 'N/A',
+          user_id: profile.id
+        };
+      });
+      
+      setPaymentsList(processedData);
+    } catch (error) {
+      console.error('Error fetching payments:', error);
+      toast({
+        title: "Error",
+        description: "Could not load payment proofs",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleApprovePayment = async (paymentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({ approved: true })
+        .eq('id', paymentId);
+        
+      if (error) throw error;
+      
+      // Update local state
+      setPaymentsList(prev => prev.map(payment => 
+        payment.id === paymentId ? { ...payment, approved: true } : payment
+      ));
+      
+      if (selectedPayment?.id === paymentId) {
+        setSelectedPayment({...selectedPayment, approved: true});
+      }
+      
+      toast({
+        title: "Payment verified",
+        description: "The payment has been successfully verified",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error verifying payment",
+        description: error.message || "There was an error verifying the payment",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const rejectPayment = async (paymentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({ approved: false })
+        .eq('id', paymentId);
+        
+      if (error) throw error;
+      
+      // Update local state
+      setPaymentsList(prev => prev.map(payment => 
+        payment.id === paymentId ? { ...payment, approved: false } : payment
+      ));
+      
+      if (selectedPayment?.id === paymentId) {
+        setSelectedPayment({...selectedPayment, approved: false});
+      }
+      
+      toast({
+        title: "Payment rejected",
+        description: "The payment has been rejected",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error rejecting payment",
+        description: error.message || "There was an error rejecting the payment",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const handlePaymentSelect = (payment: any) => {
+    setSelectedPayment(payment);
+  };
+  
+  const filteredPayments = paymentsList.filter(payment =>
+    payment.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    payment.student_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    `${payment.metadata?.month} ${payment.metadata?.year}`.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
   return (
     <div className="min-h-screen bg-secondary/30">
       {/* Header */}
@@ -268,52 +392,27 @@ const Dashboard = () => {
           {/* Dashboard Title and Stats */}
           <div className="flex flex-col md:flex-row justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold mb-1">Student Registration Dashboard</h1>
-              <p className="text-muted-foreground">Manage and approve student registrations</p>
+              <h1 className="text-2xl font-bold mb-1">Admin Dashboard</h1>
+              <p className="text-muted-foreground">Manage students and verify payments</p>
             </div>
             
             <div className="flex gap-4">
-              <Card className="w-full md:w-40">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Pending</p>
-                      <p className="text-2xl font-bold">{pendingStudents.length}</p>
-                    </div>
-                    <div className="p-2 bg-orange-100 text-orange-600 rounded-full">
-                      <Users className="h-5 w-5" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="w-full md:w-40">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Approved</p>
-                      <p className="text-2xl font-bold">{approvedStudents.length}</p>
-                    </div>
-                    <div className="p-2 bg-green-100 text-green-600 rounded-full">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="w-full md:w-40">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Rejected</p>
-                      <p className="text-2xl font-bold">{rejectedStudents.length}</p>
-                    </div>
-                    <div className="p-2 bg-red-100 text-red-600 rounded-full">
-                      <XCircle className="h-5 w-5" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Button 
+                variant={paymentsView ? "default" : "outline"} 
+                onClick={() => setPaymentsView(true)}
+                className="flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                Payment Proofs
+              </Button>
+              <Button 
+                variant={!paymentsView ? "default" : "outline"} 
+                onClick={() => setPaymentsView(false)}
+                className="flex items-center gap-2"
+              >
+                <Users className="h-4 w-4" />
+                Students
+              </Button>
             </div>
           </div>
           
@@ -322,7 +421,7 @@ const Dashboard = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Search by name, email or student ID..." 
+                placeholder={paymentsView ? "Search payments..." : "Search by name, email or student ID..."} 
                 className="pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -334,256 +433,399 @@ const Dashboard = () => {
             </Button>
           </div>
           
-          {/* Student List and Detail View */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Student List */}
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle>Student Registrations</CardTitle>
-                  <CardDescription>Manage student registrations and approvals</CardDescription>
-                </CardHeader>
-                
-                <Tabs 
-                  defaultValue="pending" 
-                  value={currentTab}
-                  onValueChange={setCurrentTab}
-                  className="w-full"
-                >
-                  <div className="px-6">
-                    <TabsList className="grid grid-cols-3">
-                      <TabsTrigger value="pending" className="flex items-center gap-2">
-                        <span>Pending</span>
-                        <Badge variant="outline" className="ml-1">{pendingStudents.length}</Badge>
-                      </TabsTrigger>
-                      <TabsTrigger value="approved" className="flex items-center gap-2">
-                        <span>Approved</span>
-                        <Badge variant="outline" className="ml-1">{approvedStudents.length}</Badge>
-                      </TabsTrigger>
-                      <TabsTrigger value="rejected" className="flex items-center gap-2">
-                        <span>Rejected</span>
-                        <Badge variant="outline" className="ml-1">{rejectedStudents.length}</Badge>
-                      </TabsTrigger>
-                    </TabsList>
-                  </div>
+          {paymentsView ? (
+            /* Payment Management View */
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Payment List */}
+              <div className="lg:col-span-2">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>Payment Verifications</CardTitle>
+                    <CardDescription>Verify student subscription payments</CardDescription>
+                  </CardHeader>
                   
-                  <TabsContent value="pending" className="m-0">
-                    <CardContent>
-                      {isLoading ? (
-                        <div className="text-center py-8">
-                          <p className="text-muted-foreground">Loading students...</p>
-                        </div>
-                      ) : filteredPendingStudents.length === 0 ? (
-                        <div className="text-center py-8">
-                          <p className="text-muted-foreground">No pending registrations</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {filteredPendingStudents.map(student => (
-                            <StudentCard 
-                              key={student.id} 
-                              student={student} 
-                              onClick={() => handleStudentSelect(student)}
-                              isSelected={selectedStudent?.id === student.id}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </TabsContent>
-                  
-                  <TabsContent value="approved" className="m-0">
-                    <CardContent>
-                      {isLoading ? (
-                        <div className="text-center py-8">
-                          <p className="text-muted-foreground">Loading students...</p>
-                        </div>
-                      ) : filteredApprovedStudents.length === 0 ? (
-                        <div className="text-center py-8">
-                          <p className="text-muted-foreground">No approved registrations</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {filteredApprovedStudents.map(student => (
-                            <StudentCard 
-                              key={student.id} 
-                              student={student} 
-                              onClick={() => handleStudentSelect(student)}
-                              isSelected={selectedStudent?.id === student.id}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </TabsContent>
-                  
-                  <TabsContent value="rejected" className="m-0">
-                    <CardContent>
+                  <CardContent>
+                    {isLoading ? (
                       <div className="text-center py-8">
-                        <p className="text-muted-foreground">No rejected registrations</p>
+                        <p className="text-muted-foreground">Loading payments...</p>
                       </div>
-                    </CardContent>
-                  </TabsContent>
-                </Tabs>
-              </Card>
-            </div>
-            
-            {/* Detail View */}
-            <div className="lg:col-span-1">
-              <Card className="sticky top-24">
-                <CardHeader>
-                  <CardTitle>Student Details</CardTitle>
-                  <CardDescription>View and manage student information</CardDescription>
-                </CardHeader>
-                
-                <CardContent>
-                  {selectedStudent ? (
-                    <div className="space-y-6">
-                      <div className="flex flex-col items-center text-center">
-                        <Avatar className="h-20 w-20 mb-4">
-                          <AvatarImage src="" alt={selectedStudent.name} />
-                          <AvatarFallback>{selectedStudent.name.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
-                        </Avatar>
-                        <h3 className="text-xl font-medium">{selectedStudent.name}</h3>
-                        <p className="text-muted-foreground">{selectedStudent.email}</p>
-                        <div className="flex items-center mt-2">
-                          <Badge 
-                            className={cn(
-                              selectedStudent.approved === false || selectedStudent.approved === null
-                                ? "bg-orange-100 text-orange-600 hover:bg-orange-100"
-                                : "bg-green-100 text-green-600 hover:bg-green-100"
-                            )}
-                          >
-                            {selectedStudent.approved ? 'Approved' : 'Pending'}
-                          </Badge>
-                        </div>
+                    ) : filteredPayments.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground">No payment proofs submitted</p>
                       </div>
-                      
-                      <Separator />
-                      
+                    ) : (
                       <div className="space-y-4">
-                        <div>
-                          <h4 className="text-sm font-medium mb-1">Student ID</h4>
-                          <p>{selectedStudent.student_id || 'Not provided'}</p>
+                        {filteredPayments.map(payment => (
+                          <PaymentCard 
+                            key={payment.id} 
+                            payment={payment} 
+                            onClick={() => handlePaymentSelect(payment)}
+                            isSelected={selectedPayment?.id === payment.id}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Payment Detail View */}
+              <div className="lg:col-span-1">
+                <Card className="sticky top-24">
+                  <CardHeader>
+                    <CardTitle>Payment Details</CardTitle>
+                    <CardDescription>View and verify payment information</CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    {selectedPayment ? (
+                      <div className="space-y-6">
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-medium">{selectedPayment.name}</h3>
+                          <p className="text-sm text-muted-foreground">Student ID: {selectedPayment.student_id}</p>
+                          <div className="flex items-center mt-1">
+                            <Badge 
+                              className={cn(
+                                selectedPayment.approved === true
+                                  ? "bg-green-100 text-green-600 hover:bg-green-100"
+                                  : selectedPayment.approved === false
+                                  ? "bg-red-100 text-red-600 hover:bg-red-100"
+                                  : "bg-orange-100 text-orange-600 hover:bg-orange-100"
+                              )}
+                            >
+                              {selectedPayment.approved === true ? 'Verified' : 
+                               selectedPayment.approved === false ? 'Rejected' : 'Pending'}
+                            </Badge>
+                          </div>
                         </div>
                         
-                        <div>
-                          <h4 className="text-sm font-medium mb-1">Phone Number</h4>
-                          <p>{selectedStudent.phone_number || 'Not provided'}</p>
-                        </div>
+                        <Separator />
                         
-                        <div>
-                          <h4 className="text-sm font-medium mb-1">Registration Date</h4>
-                          <p>{new Date(selectedStudent.created_at).toLocaleDateString()}</p>
-                        </div>
-                        
-                        {selectedStudent.bio && (
+                        <div className="space-y-4">
                           <div>
-                            <h4 className="text-sm font-medium mb-1">Bio</h4>
-                            <p className="text-sm">{selectedStudent.bio}</p>
+                            <h4 className="text-sm font-medium mb-1">Payment Period</h4>
+                            <p>{selectedPayment.metadata?.month} {selectedPayment.metadata?.year}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="text-sm font-medium mb-1">Uploaded On</h4>
+                            <p>{new Date(selectedPayment.uploaded_at || selectedPayment.created_at).toLocaleDateString()}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="text-sm font-medium mb-1">File</h4>
+                            <div className="flex items-center justify-between bg-secondary/50 p-2 rounded-md">
+                              <div className="flex items-center">
+                                <FileText className="h-4 w-4 text-primary mr-2" />
+                                <span className="text-sm truncate max-w-[200px]">{selectedPayment.name}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                  onClick={() => viewDocumentUrl(selectedPayment.file_path)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                  onClick={() => downloadDocument(selectedPayment.file_path, selectedPayment.name)}
+                                >
+                                  <DownloadCloud className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-center h-[300px]">
+                        <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No Payment Selected</h3>
+                        <p className="text-muted-foreground">
+                          Select a payment from the list to view its details
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                  
+                  {selectedPayment && selectedPayment.approved !== true && (
+                    <CardFooter className="flex justify-between gap-4">
+                      <Button 
+                        variant="outline" 
+                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        onClick={() => rejectPayment(selectedPayment.id)}
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Reject
+                      </Button>
+                      <Button 
+                        className="w-full"
+                        onClick={() => handleApprovePayment(selectedPayment.id)}
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Verify
+                      </Button>
+                    </CardFooter>
+                  )}
+                </Card>
+              </div>
+            </div>
+          ) : (
+            /* Student Management View */
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Student List */}
+              <div className="lg:col-span-2">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>Student Registrations</CardTitle>
+                    <CardDescription>Manage student registrations and approvals</CardDescription>
+                  </CardHeader>
+                  
+                  <Tabs 
+                    defaultValue="pending" 
+                    value={currentTab}
+                    onValueChange={setCurrentTab}
+                    className="w-full"
+                  >
+                    <div className="px-6">
+                      <TabsList className="grid grid-cols-3">
+                        <TabsTrigger value="pending" className="flex items-center gap-2">
+                          <span>Pending</span>
+                          <Badge variant="outline" className="ml-1">{pendingStudents.length}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="approved" className="flex items-center gap-2">
+                          <span>Approved</span>
+                          <Badge variant="outline" className="ml-1">{approvedStudents.length}</Badge>
+                        </TabsTrigger>
+                        <TabsTrigger value="rejected" className="flex items-center gap-2">
+                          <span>Rejected</span>
+                          <Badge variant="outline" className="ml-1">{rejectedStudents.length}</Badge>
+                        </TabsTrigger>
+                      </TabsList>
+                    </div>
+                    
+                    <TabsContent value="pending" className="m-0">
+                      <CardContent>
+                        {isLoading ? (
+                          <div className="text-center py-8">
+                            <p className="text-muted-foreground">Loading students...</p>
+                          </div>
+                        ) : filteredPendingStudents.length === 0 ? (
+                          <div className="text-center py-8">
+                            <p className="text-muted-foreground">No pending registrations</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {filteredPendingStudents.map(student => (
+                              <StudentCard 
+                                key={student.id} 
+                                student={student} 
+                                onClick={() => handleStudentSelect(student)}
+                                isSelected={selectedStudent?.id === student.id}
+                              />
+                            ))}
                           </div>
                         )}
+                      </CardContent>
+                    </TabsContent>
+                    
+                    <TabsContent value="approved" className="m-0">
+                      <CardContent>
+                        {isLoading ? (
+                          <div className="text-center py-8">
+                            <p className="text-muted-foreground">Loading students...</p>
+                          </div>
+                        ) : filteredApprovedStudents.length === 0 ? (
+                          <div className="text-center py-8">
+                            <p className="text-muted-foreground">No approved registrations</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {filteredApprovedStudents.map(student => (
+                              <StudentCard 
+                                key={student.id} 
+                                student={student} 
+                                onClick={() => handleStudentSelect(student)}
+                                isSelected={selectedStudent?.id === student.id}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </TabsContent>
+                    
+                    <TabsContent value="rejected" className="m-0">
+                      <CardContent>
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground">No rejected registrations</p>
+                        </div>
+                      </CardContent>
+                    </TabsContent>
+                  </Tabs>
+                </Card>
+              </div>
+              
+              {/* Detail View */}
+              <div className="lg:col-span-1">
+                <Card className="sticky top-24">
+                  <CardHeader>
+                    <CardTitle>Student Details</CardTitle>
+                    <CardDescription>View and manage student information</CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    {selectedStudent ? (
+                      <div className="space-y-6">
+                        <div className="flex flex-col items-center text-center">
+                          <Avatar className="h-20 w-20 mb-4">
+                            <AvatarImage src="" alt={selectedStudent.name} />
+                            <AvatarFallback>{selectedStudent.name.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
+                          </Avatar>
+                          <h3 className="text-xl font-medium">{selectedStudent.name}</h3>
+                          <p className="text-muted-foreground">{selectedStudent.email}</p>
+                          <div className="flex items-center mt-2">
+                            <Badge 
+                              className={cn(
+                                selectedStudent.approved === false || selectedStudent.approved === null
+                                  ? "bg-orange-100 text-orange-600 hover:bg-orange-100"
+                                  : "bg-green-100 text-green-600 hover:bg-green-100"
+                              )}
+                            >
+                              {selectedStudent.approved ? 'Approved' : 'Pending'}
+                            </Badge>
+                          </div>
+                        </div>
                         
-                        {studentDocuments.length > 0 && (
+                        <Separator />
+                        
+                        <div className="space-y-4">
                           <div>
-                            <h4 className="text-sm font-medium mb-2">Documents</h4>
-                            <div className="space-y-2">
-                              {studentDocuments.map((doc) => (
-                                <div key={doc.id} className="flex items-center justify-between bg-secondary/50 p-2 rounded-md">
-                                  <div className="flex items-center">
-                                    <FileText className="h-4 w-4 text-primary mr-2" />
-                                    <div>
-                                      <span className="text-sm">{doc.name}</span>
-                                      <p className="text-xs text-muted-foreground">
-                                        {doc.document_type === 'student_id' && 'Student ID'}
-                                        {doc.document_type === 'study_permit' && 'Study Permit'}
-                                        {doc.document_type === 'photo' && 'Personal Photo'}
-                                      </p>
+                            <h4 className="text-sm font-medium mb-1">Student ID</h4>
+                            <p>{selectedStudent.student_id || 'Not provided'}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="text-sm font-medium mb-1">Phone Number</h4>
+                            <p>{selectedStudent.phone_number || 'Not provided'}</p>
+                          </div>
+                          
+                          <div>
+                            <h4 className="text-sm font-medium mb-1">Registration Date</h4>
+                            <p>{new Date(selectedStudent.created_at).toLocaleDateString()}</p>
+                          </div>
+                          
+                          {selectedStudent.bio && (
+                            <div>
+                              <h4 className="text-sm font-medium mb-1">Bio</h4>
+                              <p className="text-sm">{selectedStudent.bio}</p>
+                            </div>
+                          )}
+                          
+                          {studentDocuments.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-medium mb-2">Documents</h4>
+                              <div className="space-y-2">
+                                {studentDocuments.map((doc) => (
+                                  <div key={doc.id} className="flex items-center justify-between bg-secondary/50 p-2 rounded-md">
+                                    <div className="flex items-center">
+                                      <FileText className="h-4 w-4 text-primary mr-2" />
+                                      <div>
+                                        <span className="text-sm">{doc.name}</span>
+                                        <p className="text-xs text-muted-foreground">
+                                          {doc.document_type === 'student_id' && 'Student ID'}
+                                          {doc.document_type === 'study_permit' && 'Study Permit'}
+                                          {doc.document_type === 'photo' && 'Personal Photo'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8"
+                                        onClick={() => viewDocumentUrl(doc.file_path)}
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8"
+                                        onClick={() => downloadDocument(doc.file_path, doc.name)}
+                                      >
+                                        <DownloadCloud className="h-4 w-4" />
+                                      </Button>
                                     </div>
                                   </div>
-                                  <div className="flex items-center">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-8 w-8"
-                                      onClick={() => viewDocumentUrl(doc.file_path)}
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-8 w-8"
-                                      onClick={() => downloadDocument(doc.file_path, doc.name)}
-                                    >
-                                      <DownloadCloud className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        
-                        {studentDocuments.length === 0 && (
-                          <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
-                            <div className="flex">
-                              <AlertTriangle className="h-5 w-5 text-amber-600 mr-2" />
-                              <p className="text-sm text-amber-800">
-                                No documents uploaded yet
-                              </p>
+                          )}
+                          
+                          {studentDocuments.length === 0 && (
+                            <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
+                              <div className="flex">
+                                <AlertTriangle className="h-5 w-5 text-amber-600 mr-2" />
+                                <p className="text-sm text-amber-800">
+                                  No documents uploaded yet
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-center h-[400px]">
-                      <User className="h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No Student Selected</h3>
-                      <p className="text-muted-foreground">
-                        Select a student from the list to view their details
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-center h-[400px]">
+                        <User className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No Student Selected</h3>
+                        <p className="text-muted-foreground">
+                          Select a student from the list to view their details
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                  
+                  {selectedStudent && (selectedStudent.approved === false || selectedStudent.approved === null) && (
+                    <CardFooter className="flex justify-between gap-4">
+                      <Button 
+                        variant="outline" 
+                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        onClick={() => handleRejectStudent(selectedStudent.id)}
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Reject
+                      </Button>
+                      <Button 
+                        className="w-full"
+                        onClick={() => handleApproveStudent(selectedStudent.id)}
+                        disabled={studentDocuments.length < 3}
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Approve
+                      </Button>
+                    </CardFooter>
                   )}
-                </CardContent>
-                
-                {selectedStudent && (selectedStudent.approved === false || selectedStudent.approved === null) && (
-                  <CardFooter className="flex justify-between gap-4">
-                    <Button 
-                      variant="outline" 
-                      className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                      onClick={() => handleRejectStudent(selectedStudent.id)}
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Reject
-                    </Button>
-                    <Button 
-                      className="w-full"
-                      onClick={() => handleApproveStudent(selectedStudent.id)}
-                      disabled={studentDocuments.length < 3}
-                    >
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Approve
-                    </Button>
-                  </CardFooter>
-                )}
-              </Card>
+                </Card>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-// Student Card Component for the list
-const StudentCard = ({ 
-  student, 
+// Payment Card Component for the list
+const PaymentCard = ({ 
+  payment, 
   onClick, 
   isSelected 
 }: { 
-  student: any; 
+  payment: any; 
   onClick: () => void; 
   isSelected: boolean 
 }) => {
@@ -600,36 +842,18 @@ const StudentCard = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <Avatar className="h-10 w-10 mr-3">
-            <AvatarImage src="" alt={student.name} />
-            <AvatarFallback>{student.name.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
+            <AvatarImage src="" alt={payment.name} />
+            <AvatarFallback>{payment.name.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="font-medium">{student.name}</h3>
-            <p className="text-sm text-muted-foreground">{student.email}</p>
+            <h3 className="font-medium">{payment.name}</h3>
+            <p className="text-sm text-muted-foreground">
+              {payment.metadata.month} {payment.metadata.year}
+            </p>
           </div>
         </div>
         <Badge 
           className={cn(
             "ml-auto",
-            student.approved 
-              ? "bg-green-100 text-green-600 hover:bg-green-100" 
-              : "bg-orange-100 text-orange-600 hover:bg-orange-100"
-          )}
-        >
-          {student.approved ? 'Approved' : 'Pending'}
-        </Badge>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
-        <div>
-          <span className="text-muted-foreground">ID:</span> {student.student_id || 'N/A'}
-        </div>
-        <div>
-          <span className="text-muted-foreground">Created:</span> {new Date(student.created_at).toLocaleDateString()}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default Dashboard;
+            payment.approved === true
+              ? "bg-green-100 text-green-600 hover:bg-green-100"
