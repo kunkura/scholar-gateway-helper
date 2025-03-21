@@ -11,28 +11,34 @@ export type Database = {
     Tables: {
       documents: {
         Row: {
+          approved: boolean | null
           document_type: string
           file_path: string
           file_type: string
           id: string
+          metadata: Json | null
           name: string
           uploaded_at: string | null
           user_id: string
         }
         Insert: {
+          approved?: boolean | null
           document_type: string
           file_path: string
           file_type: string
           id?: string
+          metadata?: Json | null
           name: string
           uploaded_at?: string | null
           user_id: string
         }
         Update: {
+          approved?: boolean | null
           document_type?: string
           file_path?: string
           file_type?: string
           id?: string
+          metadata?: Json | null
           name?: string
           uploaded_at?: string | null
           user_id?: string

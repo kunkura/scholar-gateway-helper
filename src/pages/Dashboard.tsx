@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -848,7 +849,7 @@ const PaymentCard = ({
           <div>
             <h3 className="font-medium">{payment.name}</h3>
             <p className="text-sm text-muted-foreground">
-              {payment.metadata.month} {payment.metadata.year}
+              {payment.metadata?.month} {payment.metadata?.year}
             </p>
           </div>
         </div>
@@ -857,3 +858,66 @@ const PaymentCard = ({
             "ml-auto",
             payment.approved === true
               ? "bg-green-100 text-green-600 hover:bg-green-100"
+              : payment.approved === false
+              ? "bg-red-100 text-red-600 hover:bg-red-100"
+              : "bg-orange-100 text-orange-600 hover:bg-orange-100"
+          )}
+        >
+          {payment.approved === true ? 'Verified' : 
+           payment.approved === false ? 'Rejected' : 'Pending'}
+        </Badge>
+      </div>
+    </div>
+  );
+};
+
+// Student Card Component for the list
+const StudentCard = ({ 
+  student, 
+  onClick, 
+  isSelected 
+}: { 
+  student: any; 
+  onClick: () => void; 
+  isSelected: boolean 
+}) => {
+  return (
+    <div 
+      className={cn(
+        "border rounded-md p-4 cursor-pointer transition-all",
+        isSelected 
+          ? "border-primary bg-primary/5" 
+          : "hover:border-primary/30 hover:bg-secondary/50"
+      )}
+      onClick={onClick}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <Avatar className="h-10 w-10 mr-3">
+            <AvatarImage src="" alt={student.name} />
+            <AvatarFallback>{student.name.split(' ').map((n: string) => n[0]).join('')}</AvatarFallback>
+          </Avatar>
+          <div>
+            <h3 className="font-medium">{student.name}</h3>
+            <p className="text-sm text-muted-foreground">{student.email}</p>
+            {student.student_id && (
+              <p className="text-xs text-muted-foreground">ID: {student.student_id}</p>
+            )}
+          </div>
+        </div>
+        <Badge 
+          className={cn(
+            "ml-auto",
+            student.approved
+              ? "bg-green-100 text-green-600 hover:bg-green-100"
+              : "bg-orange-100 text-orange-600 hover:bg-orange-100"
+          )}
+        >
+          {student.approved ? 'Approved' : 'Pending'}
+        </Badge>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
