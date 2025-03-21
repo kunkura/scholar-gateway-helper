@@ -4,10 +4,31 @@ import { useParams } from 'react-router-dom';
 import FormBuilder from '@/components/FormBuilder';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
+
+interface FormField {
+  id: string;
+  type: string;
+  label: string;
+  required: boolean;
+  options?: string[];
+  placeholder?: string;
+}
+
+interface Form {
+  id: string;
+  title: string;
+  description: string | null;
+  created_at: string;
+  created_by: string;
+  published: boolean;
+  form_type: 'form' | 'poll';
+  form_fields: FormField[];
+}
 
 const FormBuilderPage = () => {
   const { formId } = useParams<{ formId: string }>();
-  const [form, setForm] = useState<any>(null);
+  const [form, setForm] = useState<Form | null>(null);
   const [loading, setLoading] = useState(formId !== 'new');
 
   useEffect(() => {
@@ -26,7 +47,12 @@ const FormBuilderPage = () => {
         
       if (error) throw error;
       
-      setForm(data);
+      // Convert form_fields from Json to FormField[] and form_type to the correct union type
+      setForm({
+        ...data,
+        form_type: data.form_type as 'form' | 'poll',
+        form_fields: data.form_fields as unknown as FormField[]
+      });
     } catch (error) {
       console.error('Error fetching form:', error);
     } finally {

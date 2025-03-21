@@ -21,6 +21,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
+import { useContext } from 'react';
+import { AuthContext } from '@/contexts/AuthContext';
 
 // Defining field types for the form builder
 export type FieldType = 'text' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'date';
@@ -48,6 +51,7 @@ const FormBuilder: React.FC<{ editForm?: any }> = ({ editForm }) => {
   const navigate = useNavigate();
   const [fields, setFields] = useState<FormField[]>(editForm?.form_fields || []);
   const [activeTab, setActiveTab] = useState('edit');
+  const { user } = useContext(AuthContext);
   
   // Initialize the form with edit data if available
   const form = useForm<z.infer<typeof formSchema>>({
@@ -137,7 +141,8 @@ const FormBuilder: React.FC<{ editForm?: any }> = ({ editForm }) => {
         description: values.description || '',
         form_type: values.formType,
         published: values.published,
-        form_fields: fields,
+        form_fields: fields as unknown as Json, // Cast to Json for Supabase
+        created_by: user?.id
       };
 
       if (editForm) {

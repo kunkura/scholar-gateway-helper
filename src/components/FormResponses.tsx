@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 
 interface FormField {
   id: string;
@@ -39,6 +40,25 @@ interface Submission {
   user_email?: string;
 }
 
+type SummaryStats = Array<{
+  field: FormField;
+  stats: ChoiceStats[] | TextStats;
+  type: 'choice' | 'text';
+  responses?: any[];
+}>;
+
+type ChoiceStats = {
+  option: string;
+  count: number;
+  percentage: number;
+};
+
+type TextStats = {
+  answered: number;
+  skipped: number;
+  percentageAnswered: number;
+};
+
 const FormResponses = () => {
   const { formId } = useParams<{ formId: string }>();
   const { toast } = useToast();
@@ -66,7 +86,12 @@ const FormResponses = () => {
         
       if (formError) throw formError;
       
-      setForm(formData);
+      // Cast the form data to our Form type
+      setForm({
+        ...formData,
+        form_type: formData.form_type as 'form' | 'poll',
+        form_fields: formData.form_fields as unknown as FormField[]
+      });
       
       // Fetch submissions for this form
       const { data: submissionsData, error: submissionsError } = await supabase
@@ -90,6 +115,7 @@ const FormResponses = () => {
         const profile = submission.profiles as any;
         return {
           ...submission,
+          responses: submission.responses as unknown as Record<string, any>,
           user_name: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : 'Unknown User',
           user_email: profile ? profile.student_id : 'No Student ID'
         };
@@ -164,7 +190,7 @@ const FormResponses = () => {
   };
 
   // Function to calculate summary statistics for each question
-  const calculateSummaryStats = () => {
+  const calculateSummaryStats = (): SummaryStats => {
     if (!form || submissions.length === 0) return [];
     
     return form.form_fields.map(field => {
@@ -194,7 +220,7 @@ const FormResponses = () => {
             percentage: total > 0 ? Math.round((counts[opt] || 0) / total * 100) : 0
           }));
           
-          return { field, stats, type: 'choice' };
+          return { field, stats, type: 'choice' as const };
         }
         
         case 'checkbox': {
@@ -221,7 +247,7 @@ const FormResponses = () => {
             percentage: total > 0 ? Math.round((counts[opt] || 0) / total * 100) : 0
           }));
           
-          return { field, stats, type: 'choice' };
+          return { field, stats, type: 'choice' as const };
         }
         
         case 'text':
@@ -238,8 +264,8 @@ const FormResponses = () => {
               answered,
               skipped: total - answered,
               percentageAnswered: total > 0 ? Math.round(answered / total * 100) : 0
-            },
-            type: 'text',
+            } as TextStats,
+            type: 'text' as const,
             responses: responses.filter(Boolean)
           };
       }
@@ -304,12 +330,12 @@ const FormResponses = () => {
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold">{form.title}</h1>
-              <Badge variant={form.published ? "default" : "outline"}>
-                {form.published ? 'Published' : 'Draft'}
+              <h1 className="text-xl font-bold">{form?.title}</h1>
+              <Badge variant={form?.published ? "default" : "outline"}>
+                {form?.published ? 'Published' : 'Draft'}
               </Badge>
             </div>
-            {form.description && (
+            {form?.description && (
               <p className="text-sm text-muted-foreground">{form.description}</p>
             )}
           </div>
@@ -318,7 +344,7 @@ const FormResponses = () => {
         <div className="flex items-center gap-2 w-full md:w-auto">
           <Button 
             variant="outline" 
-            onClick={() => navigate(`/admin/forms/${form.id}/edit`)}
+            onClick={() => navigate(`/admin/forms/${form?.id}/edit`)}
             className="w-full md:w-auto"
           >
             Edit Form
@@ -346,13 +372,13 @@ const FormResponses = () => {
           <Separator orientation="vertical" className="h-6" />
           
           <div className="flex items-center gap-2">
-            {form.form_type === 'form' ? (
+            {form?.form_type === 'form' ? (
               <FileText className="h-5 w-5 text-muted-foreground" />
             ) : (
               <BarChart4 className="h-5 w-5 text-muted-foreground" />
             )}
             <span className="text-muted-foreground">
-              {form.form_type === 'form' ? 'Form' : 'Poll'}
+              {form?.form_type === 'form' ? 'Form' : 'Poll'}
             </span>
           </div>
         </div>
@@ -400,7 +426,7 @@ const FormResponses = () => {
                   </CardHeader>
                   
                   <CardContent className="space-y-4">
-                    {form.form_fields.map((field) => (
+                    {form?.form_fields.map((field) => (
                       <div key={field.id} className="space-y-1">
                         <div className="text-sm font-medium">{field.label}</div>
                         <div className="text-sm">
@@ -438,14 +464,14 @@ const FormResponses = () => {
                     <CardDescription>
                       {item.type === 'choice' 
                         ? `${submissions.length} responses`
-                        : `${item.stats.answered} answered, ${item.stats.skipped} skipped`}
+                        : `${(item.stats as TextStats).answered} answered, ${(item.stats as TextStats).skipped} skipped`}
                     </CardDescription>
                   </CardHeader>
                   
                   <CardContent>
                     {item.type === 'choice' && (
                       <div className="space-y-3">
-                        {item.stats.map((stat, i) => (
+                        {(item.stats as ChoiceStats[]).map((stat, i) => (
                           <div key={i} className="space-y-1">
                             <div className="flex justify-between text-sm">
                               <span>{stat.option}</span>
@@ -466,12 +492,12 @@ const FormResponses = () => {
                       <div className="space-y-3">
                         <div className="flex justify-between text-sm mb-2">
                           <span>Response rate</span>
-                          <span className="font-medium">{item.stats.percentageAnswered}%</span>
+                          <span className="font-medium">{(item.stats as TextStats).percentageAnswered}%</span>
                         </div>
                         <div className="w-full bg-secondary h-2 rounded-full overflow-hidden mb-4">
                           <div 
                             className="bg-primary h-full rounded-full" 
-                            style={{ width: `${item.stats.percentageAnswered}%` }}
+                            style={{ width: `${(item.stats as TextStats).percentageAnswered}%` }}
                           ></div>
                         </div>
                         
@@ -479,7 +505,7 @@ const FormResponses = () => {
                           <div className="space-y-2 mt-4">
                             <h4 className="text-sm font-medium">Responses:</h4>
                             <div className="max-h-60 overflow-y-auto space-y-2">
-                              {item.responses.map((resp, i) => (
+                              {item.responses?.map((resp, i) => (
                                 <div key={i} className="text-sm p-2 bg-secondary/30 rounded-md">
                                   {resp}
                                 </div>

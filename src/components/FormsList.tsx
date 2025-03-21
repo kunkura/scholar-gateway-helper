@@ -15,6 +15,16 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
+
+interface FormField {
+  id: string;
+  type: string;
+  label: string;
+  required: boolean;
+  options?: string[];
+  placeholder?: string;
+}
 
 interface Form {
   id: string;
@@ -23,7 +33,7 @@ interface Form {
   created_at: string;
   published: boolean;
   form_type: 'form' | 'poll';
-  form_fields: any[];
+  form_fields: FormField[];
   submission_count?: number;
 }
 
@@ -62,6 +72,8 @@ const FormsList = () => {
             
           return {
             ...form,
+            form_type: form.form_type as 'form' | 'poll',
+            form_fields: form.form_fields as unknown as FormField[],
             submission_count: count || 0
           };
         })
