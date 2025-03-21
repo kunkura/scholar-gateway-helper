@@ -45,6 +45,71 @@ export type Database = {
         }
         Relationships: []
       }
+      form_submissions: {
+        Row: {
+          form_id: string
+          id: string
+          responses: Json
+          submitted_at: string
+          user_id: string
+        }
+        Insert: {
+          form_id: string
+          id?: string
+          responses: Json
+          submitted_at?: string
+          user_id: string
+        }
+        Update: {
+          form_id?: string
+          id?: string
+          responses?: Json
+          submitted_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forms: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          form_fields: Json
+          form_type: string
+          id: string
+          published: boolean | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          form_fields: Json
+          form_type: string
+          id?: string
+          published?: boolean | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          form_fields?: Json
+          form_type?: string
+          id?: string
+          published?: boolean | null
+          title?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           approved: boolean | null

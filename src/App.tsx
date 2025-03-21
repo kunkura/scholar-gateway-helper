@@ -14,6 +14,15 @@ import Profile from "./pages/Profile";
 import RegistrationSuccess from "./pages/RegistrationSuccess";
 import NotFound from "./pages/NotFound";
 
+// Admin pages
+import FormsPage from "./pages/admin/FormsPage";
+import FormBuilder from "./pages/admin/FormBuilder";
+import FormResponses from "./pages/admin/FormResponses";
+
+// Student pages
+import StudentForms from "./pages/student/Forms";
+import StudentFormView from "./pages/student/FormView";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -28,16 +37,51 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/registration-success" element={<RegistrationSuccess />} />
+            
+            {/* Admin routes */}
             <Route path="/dashboard" element={
               <ProtectedRoute requiredRole="admin">
                 <Dashboard />
               </ProtectedRoute>
             } />
+            <Route path="/admin/forms" element={
+              <ProtectedRoute requiredRole="admin">
+                <FormsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/forms/new" element={
+              <ProtectedRoute requiredRole="admin">
+                <FormBuilder />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/forms/:formId/edit" element={
+              <ProtectedRoute requiredRole="admin">
+                <FormBuilder />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/forms/:formId/responses" element={
+              <ProtectedRoute requiredRole="admin">
+                <FormResponses />
+              </ProtectedRoute>
+            } />
+            
+            {/* Student routes */}
             <Route path="/profile" element={
               <ProtectedRoute>
                 <Profile />
               </ProtectedRoute>
             } />
+            <Route path="/student/forms" element={
+              <ProtectedRoute requiredRole="student">
+                <StudentForms />
+              </ProtectedRoute>
+            } />
+            <Route path="/student/forms/:formId" element={
+              <ProtectedRoute requiredRole="student">
+                <StudentFormView />
+              </ProtectedRoute>
+            } />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
