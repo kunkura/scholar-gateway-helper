@@ -19,6 +19,9 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ['Tajawal', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif']
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -112,8 +115,12 @@ export default {
 				'slide-down': 'slide-down 0.4s ease-out',
 				'scale-in': 'scale-in 0.4s ease-out',
 				'blur-in': 'blur-in 0.4s ease-out'
+			},
+			textDirection: {
+				rtl: 'rtl'
 			}
 		}
 	},
 	plugins: [require("tailwindcss-animate")],
 } satisfies Config;
+
